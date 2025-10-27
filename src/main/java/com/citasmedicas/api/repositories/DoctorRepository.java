@@ -1,6 +1,6 @@
-package citasmedicas.repository;
+package com.citasmedicas.api.repositories;
 
-import citasmedicas.model.Doctor;
+import com.citasmedicas.api.models.Doctor;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 

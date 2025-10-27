@@ -1,10 +1,10 @@
-package CitasMedicas;
+package com.citasmedicas;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 
 @SpringBootTest
-class CitasMedicasApplicationTests {
+class ApiApplicationTests {
 
 	@Test
 	void contextLoads() {
