@@ -33,7 +33,7 @@ public class CitaService {
     private final DoctorRepository doctorRepository;
     private final HorarioRepository horarioRepository;
     private final CitaMapper citaMapper;
-    private final EmailService emailService; // Inyección del servicio de correo
+    // La inyección de EmailService ha sido eliminada
     private static final int DURACION_CITA_MINUTOS = 30;
 
     private void validarDisponibilidad(Doctor doctor, LocalDateTime fechaHoraCita) {
@@ -56,18 +56,15 @@ public class CitaService {
             }
         }
 
-        List<Horario> horariosDoctor = horarioRepository.findAllByDoctorId(doctor.getId());
-
-        // --- INICIO DE LA CORRECCIÓN ---
-        // Creamos una variable final para usarla dentro de la lambda.
         final DiaDeLaSemana finalDiaDeLaSemanaApp = diaDeLaSemanaApp;
 
+        List<Horario> horariosDoctor = horarioRepository.findAllByDoctorId(doctor.getId());
+
         boolean dentroDeHorario = horariosDoctor.stream().anyMatch(h ->
-                h.getDiaDeLaSemana() == finalDiaDeLaSemanaApp && // Usamos la variable final
+                h.getDiaDeLaSemana() == finalDiaDeLaSemanaApp &&
                         !horaCita.isBefore(h.getHoraInicio()) &&
                         !horaCita.isAfter(h.getHoraFin().minusMinutes(DURACION_CITA_MINUTOS))
         );
-        // --- FIN DE LA CORRECCIÓN ---
 
         if (!dentroDeHorario) {
             throw new IllegalArgumentException("El horario solicitado está fuera de las horas de trabajo del doctor.");
@@ -123,7 +120,7 @@ public class CitaService {
         cita.setEstado(EstadoCita.PROGRAMADA);
 
         Cita citaActualizada = citaRepository.save(cita);
-        emailService.notificarCambioDeEstadoCita(citaActualizada.getId()); // Notificación por correo
+        // La llamada a emailService ha sido eliminada
         return citaMapper.toDto(citaActualizada);
     }
 
@@ -147,7 +144,7 @@ public class CitaService {
         cita.setEstado(EstadoCita.PROGRAMADA);
 
         Cita citaActualizada = citaRepository.save(cita);
-        emailService.notificarCambioDeEstadoCita(citaActualizada.getId()); // Notificación por correo
+        // La llamada a emailService ha sido eliminada
         return citaMapper.toDto(citaActualizada);
     }
 
@@ -171,13 +168,12 @@ public class CitaService {
         cita.setEstado(nuevoEstado);
         Cita citaActualizada = citaRepository.save(cita);
 
-        if (nuevoEstado == EstadoCita.RECHAZADA || nuevoEstado == EstadoCita.CANCELADA) {
-            emailService.notificarCambioDeEstadoCita(citaActualizada.getId()); // Notificación por correo
-        }
+        // La llamada a emailService ha sido eliminada
 
         return citaMapper.toDto(citaActualizada);
     }
 
+    // ... (El resto de los métodos no necesitan cambios)
     public List<CitaDTO> obtenerSolicitudesPorDoctor(Usuario usuarioAutenticado) {
         Doctor doctor = doctorRepository.findByUsuarioId(usuarioAutenticado.getId())
                 .orElseThrow(() -> new ResourceNotFoundException("Perfil de Doctor no encontrado para el usuario."));
