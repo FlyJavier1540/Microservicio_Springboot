@@ -1,21 +1,25 @@
 package com.citasmedicas.api.services;
 
+import com.citasmedicas.api.dtos.CitaAprobacionDTO;
 import com.citasmedicas.api.dtos.CitaDTO;
+import com.citasmedicas.api.dtos.CitaPospuestaDTO;
+import com.citasmedicas.api.dtos.CitaSolicitudDTO;
 import com.citasmedicas.api.enums.EstadoCita;
 import com.citasmedicas.api.exceptions.ResourceNotFoundException;
 import com.citasmedicas.api.mappers.CitaMapper;
-import com.citasmedicas.api.models.Cita;
-import com.citasmedicas.api.models.Doctor;
-import com.citasmedicas.api.models.Paciente;
-import com.citasmedicas.api.models.Usuario;
+import com.citasmedicas.api.models.*;
 import com.citasmedicas.api.repositories.CitaRepository;
 import com.citasmedicas.api.repositories.DoctorRepository;
+import com.citasmedicas.api.repositories.HorarioRepository;
 import com.citasmedicas.api.repositories.PacienteRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.security.access.AccessDeniedException;
 
+import java.time.DayOfWeek;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -26,49 +30,116 @@ public class CitaService {
     private final CitaRepository citaRepository;
     private final PacienteRepository pacienteRepository;
     private final DoctorRepository doctorRepository;
+    private final HorarioRepository horarioRepository;
     private final CitaMapper citaMapper;
+    private static final int DURACION_CITA_MINUTOS = 30; // Duración estándar de una cita
 
-    public List<CitaDTO> obtenerSolicitudesPorDoctor(Usuario usuarioAutenticado) {
-        // 1. Encontrar el perfil de Doctor a partir del Usuario autenticado
-        Doctor doctor = doctorRepository.findByUsuarioId(usuarioAutenticado.getId())
-                .orElseThrow(() -> new ResourceNotFoundException("Perfil de Doctor no encontrado para el usuario."));
+    /**
+     * Valida si un doctor está disponible en una fecha y hora específicas.
+     * Lanza una excepción si el horario está fuera de las horas de trabajo o si ya hay una cita.
+     */
+    private void validarDisponibilidad(Doctor doctor, LocalDateTime fechaHoraCita) {
+        // 1. Validar que la cita sea dentro del horario laboral del doctor
+        DayOfWeek diaDeLaSemanaCita = fechaHoraCita.getDayOfWeek();
+        LocalTime horaCita = fechaHoraCita.toLocalTime();
 
-        // 2. Buscar en el repositorio de citas usando el ID del Doctor y el estado SOLICITADA
-        return citaRepository.findAllByDoctorIdAndEstado(doctor.getId(), EstadoCita.SOLICITADA).stream()
-                .map(citaMapper::toDto)
-                .collect(Collectors.toList());
+        List<Horario> horariosDoctor = horarioRepository.findAllByDoctorId(doctor.getId());
+
+        boolean dentroDeHorario = horariosDoctor.stream().anyMatch(h ->
+                h.getDiaDeLaSemana().name().equals(diaDeLaSemanaCita.toString()) &&
+                        !horaCita.isBefore(h.getHoraInicio()) &&
+                        !horaCita.isAfter(h.getHoraFin().minusMinutes(DURACION_CITA_MINUTOS))
+        );
+
+        if (!dentroDeHorario) {
+            throw new IllegalArgumentException("El horario solicitado está fuera de las horas de trabajo del doctor.");
+        }
+
+        // 2. Validar que no haya colisiones con otras citas ya programadas
+        LocalDateTime horaFinCita = fechaHoraCita.plusMinutes(DURACION_CITA_MINUTOS);
+        List<Cita> citasSolapadas = citaRepository.findByDoctorIdAndFechaHoraBetween(
+                doctor.getId(),
+                fechaHoraCita.minusMinutes(DURACION_CITA_MINUTOS - 1),
+                horaFinCita.minusMinutes(1)
+        );
+
+        if (!citasSolapadas.isEmpty()) {
+            throw new IllegalArgumentException("Ya existe una cita programada en el horario seleccionado.");
+        }
     }
 
     @Transactional
-    public CitaDTO solicitarCita(CitaDTO citaDTO) {
-        // 1. Validar que el paciente y el doctor existan
-        Paciente paciente = pacienteRepository.findById(citaDTO.getPacienteId())
-                .orElseThrow(() -> new ResourceNotFoundException("Paciente no encontrado con id: " + citaDTO.getPacienteId()));
-        Doctor doctor = doctorRepository.findById(citaDTO.getDoctorId())
-                .orElseThrow(() -> new ResourceNotFoundException("Doctor no encontrado con id: " + citaDTO.getDoctorId()));
+    public CitaDTO solicitarCita(CitaSolicitudDTO solicitudDTO, Usuario usuarioPaciente) {
+        Paciente paciente = pacienteRepository.findByUsuarioId(usuarioPaciente.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Perfil de Paciente no encontrado para el usuario."));
+        Doctor doctor = doctorRepository.findById(solicitudDTO.getDoctorId())
+                .orElseThrow(() -> new ResourceNotFoundException("Doctor no encontrado con id: " + solicitudDTO.getDoctorId()));
 
-        // 2. Crear la entidad Cita y establecer su estado inicial
-        Cita nuevaCita = citaMapper.toEntity(citaDTO);
+        Cita nuevaCita = new Cita();
         nuevaCita.setPaciente(paciente);
         nuevaCita.setDoctor(doctor);
-        nuevaCita.setEstado(EstadoCita.SOLICITADA); // ¡Estado inicial clave!
+        nuevaCita.setMotivoConsulta(solicitudDTO.getMotivoConsulta());
+        nuevaCita.setFechaHora(solicitudDTO.getFecha().atStartOfDay());
+        nuevaCita.setEstado(EstadoCita.SOLICITADA);
 
-        // 3. Guardar en la base de datos
         Cita citaGuardada = citaRepository.save(nuevaCita);
-
-        // 4. Devolver el DTO de la cita recién creada
         return citaMapper.toDto(citaGuardada);
     }
 
+    @Transactional
+    public CitaDTO aprobarCita(Long id, CitaAprobacionDTO aprobacionDTO, Usuario usuarioAutenticado) {
+        Cita cita = citaRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Cita no encontrada con id: " + id));
+
+        boolean isAdmin = usuarioAutenticado.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+        if (!isAdmin) {
+            Doctor doctor = doctorRepository.findByUsuarioId(usuarioAutenticado.getId()).orElseThrow(() -> new ResourceNotFoundException("Perfil de Doctor no encontrado."));
+            if (!cita.getDoctor().getId().equals(doctor.getId())) {
+                throw new AccessDeniedException("No tiene permiso para modificar esta cita.");
+            }
+        }
+
+        LocalDateTime fechaHoraFinal = cita.getFechaHora().toLocalDate().atTime(aprobacionDTO.getHora());
+        validarDisponibilidad(cita.getDoctor(), fechaHoraFinal);
+
+        cita.setFechaHora(fechaHoraFinal);
+        cita.setEstado(EstadoCita.PROGRAMADA);
+
+        Cita citaActualizada = citaRepository.save(cita);
+        return citaMapper.toDto(citaActualizada);
+    }
+
+    @Transactional
+    public CitaDTO posponerCita(Long id, CitaPospuestaDTO pospuestaDTO, Usuario usuarioAutenticado) {
+        Cita cita = citaRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Cita no encontrada con id: " + id));
+
+        boolean isAdmin = usuarioAutenticado.getAuthorities().stream().anyMatch(grantedAuthority -> grantedAuthority.getAuthority().equals("ROLE_ADMIN"));
+        if (!isAdmin) {
+            Doctor doctor = doctorRepository.findByUsuarioId(usuarioAutenticado.getId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Perfil de Doctor no encontrado para el usuario."));
+            if (!cita.getDoctor().getId().equals(doctor.getId())) {
+                throw new AccessDeniedException("No tiene permiso para posponer esta cita.");
+            }
+        }
+
+        validarDisponibilidad(cita.getDoctor(), pospuestaDTO.getNuevaFechaHora());
+
+        cita.setFechaHora(pospuestaDTO.getNuevaFechaHora());
+        cita.setEstado(EstadoCita.PROGRAMADA);
+
+        Cita citaActualizada = citaRepository.save(cita);
+        return citaMapper.toDto(citaActualizada);
+    }
+
+    @Transactional
     public CitaDTO cambiarEstadoCita(Long id, EstadoCita nuevoEstado, Usuario usuarioAutenticado) {
         Cita cita = citaRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Cita no encontrada con id: " + id));
 
-        // Verificar si el usuario es un Administrador
         boolean isAdmin = usuarioAutenticado.getAuthorities().stream()
                 .anyMatch(grantedAuthority -> grantedAuthority.getAuthority().equals("ROLE_ADMIN"));
 
-        // Si el usuario no es un Admin, verificar si es el doctor asignado
         if (!isAdmin) {
             Doctor doctor = doctorRepository.findByUsuarioId(usuarioAutenticado.getId())
                     .orElseThrow(() -> new ResourceNotFoundException("Perfil de Doctor no encontrado para el usuario."));
@@ -78,27 +149,39 @@ public class CitaService {
             }
         }
 
-        // Si las verificaciones pasan, actualiza el estado
         cita.setEstado(nuevoEstado);
         Cita citaActualizada = citaRepository.save(cita);
         return citaMapper.toDto(citaActualizada);
     }
 
-    public List<CitaDTO> obtenerCitasPorPaciente(Long pacienteId) {
-        if (!pacienteRepository.existsById(pacienteId)) {
-            throw new ResourceNotFoundException("Paciente no encontrado con id: " + pacienteId);
-        }
-        return citaRepository.findAllByPacienteId(pacienteId).stream()
+    public List<CitaDTO> obtenerSolicitudesPorDoctor(Usuario usuarioAutenticado) {
+        Doctor doctor = doctorRepository.findByUsuarioId(usuarioAutenticado.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Perfil de Doctor no encontrado para el usuario."));
+
+        return citaRepository.findAllByDoctorIdAndEstado(doctor.getId(), EstadoCita.SOLICITADA).stream()
+                .map(citaMapper::toDto)
+                .collect(Collectors.toList());
+    }
+
+    public List<CitaDTO> obtenerCitasCompletadasPorDoctor(Usuario usuarioAutenticado) {
+        Doctor doctor = doctorRepository.findByUsuarioId(usuarioAutenticado.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Perfil de Doctor no encontrado para el usuario."));
+
+        return citaRepository.findAllByDoctorIdAndEstado(doctor.getId(), EstadoCita.COMPLETADA).stream()
+                .map(citaMapper::toDto)
+                .collect(Collectors.toList());
+    }
+
+    public List<CitaDTO> obtenerTodasLasCitasCompletadas() {
+        return citaRepository.findAllByEstado(EstadoCita.COMPLETADA).stream()
                 .map(citaMapper::toDto)
                 .collect(Collectors.toList());
     }
 
     public List<CitaDTO> obtenerCitasDelPacienteAutenticado(Usuario usuarioAutenticado) {
-        // 1. Encontrar el perfil del Paciente a partir del Usuario
         Paciente paciente = pacienteRepository.findByUsuarioId(usuarioAutenticado.getId())
                 .orElseThrow(() -> new ResourceNotFoundException("Perfil de Paciente no encontrado para el usuario."));
 
-        // 2. Usar el ID del Paciente para buscar todas sus citas
         return citaRepository.findAllByPacienteId(paciente.getId()).stream()
                 .map(citaMapper::toDto)
                 .collect(Collectors.toList());

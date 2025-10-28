@@ -1,15 +1,18 @@
 package com.citasmedicas.api.controllers;
 
+import com.citasmedicas.api.dtos.CitaAprobacionDTO;
 import com.citasmedicas.api.dtos.CitaDTO;
+import com.citasmedicas.api.dtos.CitaPospuestaDTO;
+import com.citasmedicas.api.dtos.CitaSolicitudDTO;
 import com.citasmedicas.api.enums.EstadoCita;
+import com.citasmedicas.api.models.Usuario;
 import com.citasmedicas.api.services.CitaService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import com.citasmedicas.api.models.Usuario;
-import org.springframework.security.core.Authentication;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -21,28 +24,30 @@ public class CitaController {
 
     private final CitaService citaService;
 
-    // Endpoint para que un paciente solicite una nueva cita
     @PostMapping("/solicitar")
     @PreAuthorize("hasRole('PACIENTE')")
-    public ResponseEntity<CitaDTO> solicitarCita(@Valid @RequestBody CitaDTO citaDTO) {
-        return new ResponseEntity<>(citaService.solicitarCita(citaDTO), HttpStatus.CREATED);
+    public ResponseEntity<CitaDTO> solicitarCita(@Valid @RequestBody CitaSolicitudDTO solicitudDTO, Authentication authentication) {
+        Usuario usuarioPaciente = (Usuario) authentication.getPrincipal();
+        return new ResponseEntity<>(citaService.solicitarCita(solicitudDTO, usuarioPaciente), HttpStatus.CREATED);
+    }
+
+    // El endpoint de aprobación ahora recibe un cuerpo (Body) con la hora
+    @PatchMapping("/{id}/aprobar")
+    @PreAuthorize("hasAnyRole('ADMIN', 'DOCTOR')")
+    public ResponseEntity<CitaDTO> aprobarCita(@PathVariable Long id,
+                                               @Valid @RequestBody CitaAprobacionDTO aprobacionDTO,
+                                               Authentication authentication) {
+        Usuario usuarioAutenticado = (Usuario) authentication.getPrincipal();
+        return ResponseEntity.ok(citaService.aprobarCita(id, aprobacionDTO, usuarioAutenticado));
     }
 
     @GetMapping("/solicitudes")
     @PreAuthorize("hasAnyRole('ADMIN', 'DOCTOR')")
     public ResponseEntity<List<CitaDTO>> getCitasSolicitadas(Authentication authentication) {
-        // Obtenemos el usuario autenticado desde el contexto de seguridad
         Usuario usuarioAutenticado = (Usuario) authentication.getPrincipal();
-
-        // Si es ADMIN, podría ver todas (lógica a futuro).
-        // Si es DOCTOR, solo verá las suyas.
-        // Por ahora, asumimos que si no es admin, es doctor.
-        // TODO: Añadir lógica para que el admin vea todas las solicitudes
-
         return ResponseEntity.ok(citaService.obtenerSolicitudesPorDoctor(usuarioAutenticado));
     }
 
-    // --- NUEVO ENDPOINT SEGURO PARA PACIENTES ---
     @GetMapping("/mis-citas")
     @PreAuthorize("hasRole('PACIENTE')")
     public ResponseEntity<List<CitaDTO>> getMisCitas(Authentication authentication) {
@@ -50,15 +55,6 @@ public class CitaController {
         return ResponseEntity.ok(citaService.obtenerCitasDelPacienteAutenticado(usuarioAutenticado));
     }
 
-    // Endpoint para aprobar una cita
-    @PatchMapping("/{id}/aprobar")
-    @PreAuthorize("hasAnyRole('ADMIN', 'DOCTOR')")
-    public ResponseEntity<CitaDTO> aprobarCita(@PathVariable Long id, Authentication authentication) {
-        Usuario usuarioAutenticado = (Usuario) authentication.getPrincipal();
-        return ResponseEntity.ok(citaService.cambiarEstadoCita(id, EstadoCita.PROGRAMADA, usuarioAutenticado));
-    }
-
-    // Endpoint para rechazar una cita
     @PatchMapping("/{id}/rechazar")
     @PreAuthorize("hasAnyRole('ADMIN', 'DOCTOR')")
     public ResponseEntity<CitaDTO> rechazarCita(@PathVariable Long id, Authentication authentication) {
@@ -66,17 +62,33 @@ public class CitaController {
         return ResponseEntity.ok(citaService.cambiarEstadoCita(id, EstadoCita.RECHAZADA, usuarioAutenticado));
     }
 
-    // Endpoint para que un paciente vea sus propias citas
-    @GetMapping("/mis-citas/{pacienteId}")
-    @PreAuthorize("hasRole('PACIENTE')") // Aquí se podría añadir validación para que solo vea las suyas
-    public ResponseEntity<List<CitaDTO>> getMisCitas(@PathVariable Long pacienteId) {
-        return ResponseEntity.ok(citaService.obtenerCitasPorPaciente(pacienteId));
-    }
-
     @PatchMapping("/{id}/completar")
     @PreAuthorize("hasAnyRole('ADMIN', 'DOCTOR')")
     public ResponseEntity<CitaDTO> completarCita(@PathVariable Long id, Authentication authentication) {
         Usuario usuarioAutenticado = (Usuario) authentication.getPrincipal();
         return ResponseEntity.ok(citaService.cambiarEstadoCita(id, EstadoCita.COMPLETADA, usuarioAutenticado));
+    }
+
+    @PatchMapping("/{id}/posponer")
+    @PreAuthorize("hasAnyRole('ADMIN', 'DOCTOR')")
+    public ResponseEntity<CitaDTO> posponerCita(@PathVariable Long id,
+                                                @Valid @RequestBody CitaPospuestaDTO pospuestaDTO,
+                                                Authentication authentication) {
+        Usuario usuarioAutenticado = (Usuario) authentication.getPrincipal();
+        return ResponseEntity.ok(citaService.posponerCita(id, pospuestaDTO, usuarioAutenticado));
+    }
+
+    @GetMapping("/mi-historial")
+    @PreAuthorize("hasRole('DOCTOR')")
+    public ResponseEntity<List<CitaDTO>> getMiHistorialDeCitas(Authentication authentication) {
+        Usuario usuarioAutenticado = (Usuario) authentication.getPrincipal();
+        return ResponseEntity.ok(citaService.obtenerCitasCompletadasPorDoctor(usuarioAutenticado));
+    }
+
+    // Endpoint para que un admin vea el historial completo de citas
+    @GetMapping("/historial-completo")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<List<CitaDTO>> getHistorialCompletoDeCitas() {
+        return ResponseEntity.ok(citaService.obtenerTodasLasCitasCompletadas());
     }
 }

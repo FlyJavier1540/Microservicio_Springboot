@@ -27,13 +27,16 @@ public class HistorialMedico {
     @Column(columnDefinition = "TEXT")
     private String notas;
 
-    // Relación con Cita
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "cita_id", nullable = false, unique = true)
     private Cita cita;
 
-    // Relación con Paciente
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "paciente_id", nullable = false)
     private Paciente paciente;
+
+    // --- NUEVA RELACIÓN ---
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "doctor_id", nullable = false)
+    private Doctor doctor; // Guarda qué doctor hizo este registro
 }

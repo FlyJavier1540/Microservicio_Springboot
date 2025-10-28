@@ -18,4 +18,5 @@ public class HistorialMedicoDTO {
 
     private String tratamiento;
     private String notas;
+    private String doctorNombre;
 }

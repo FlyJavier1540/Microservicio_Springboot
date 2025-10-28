@@ -12,6 +12,7 @@ public interface HistorialMedicoMapper {
     HistorialMedicoMapper INSTANCE = Mappers.getMapper(HistorialMedicoMapper.class);
 
     @Mapping(source = "cita.id", target = "citaId")
+    @Mapping(source = "doctor.nombreCompleto", target = "doctorNombre")
     HistorialMedicoDTO toDto(HistorialMedico historialMedico);
 
     @Mapping(source = "citaId", target = "cita.id")
