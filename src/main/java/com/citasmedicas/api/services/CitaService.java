@@ -4,6 +4,7 @@ import com.citasmedicas.api.dtos.CitaAprobacionDTO;
 import com.citasmedicas.api.dtos.CitaDTO;
 import com.citasmedicas.api.dtos.CitaPospuestaDTO;
 import com.citasmedicas.api.dtos.CitaSolicitudDTO;
+import com.citasmedicas.api.enums.DiaDeLaSemana;
 import com.citasmedicas.api.enums.EstadoCita;
 import com.citasmedicas.api.exceptions.ResourceNotFoundException;
 import com.citasmedicas.api.mappers.CitaMapper;
@@ -32,30 +33,46 @@ public class CitaService {
     private final DoctorRepository doctorRepository;
     private final HorarioRepository horarioRepository;
     private final CitaMapper citaMapper;
-    private static final int DURACION_CITA_MINUTOS = 30; // Duración estándar de una cita
+    private final EmailService emailService; // Inyección del servicio de correo
+    private static final int DURACION_CITA_MINUTOS = 30;
 
-    /**
-     * Valida si un doctor está disponible en una fecha y hora específicas.
-     * Lanza una excepción si el horario está fuera de las horas de trabajo o si ya hay una cita.
-     */
     private void validarDisponibilidad(Doctor doctor, LocalDateTime fechaHoraCita) {
-        // 1. Validar que la cita sea dentro del horario laboral del doctor
-        DayOfWeek diaDeLaSemanaCita = fechaHoraCita.getDayOfWeek();
+        DayOfWeek diaDeLaSemanaJava = fechaHoraCita.getDayOfWeek();
         LocalTime horaCita = fechaHoraCita.toLocalTime();
+
+        DiaDeLaSemana diaDeLaSemanaApp;
+        try {
+            diaDeLaSemanaApp = DiaDeLaSemana.valueOf(diaDeLaSemanaJava.name());
+        } catch (IllegalArgumentException e) {
+            switch(diaDeLaSemanaJava) {
+                case SUNDAY: diaDeLaSemanaApp = DiaDeLaSemana.DOMINGO; break;
+                case MONDAY: diaDeLaSemanaApp = DiaDeLaSemana.LUNES; break;
+                case TUESDAY: diaDeLaSemanaApp = DiaDeLaSemana.MARTES; break;
+                case WEDNESDAY: diaDeLaSemanaApp = DiaDeLaSemana.MIERCOLES; break;
+                case THURSDAY: diaDeLaSemanaApp = DiaDeLaSemana.JUEVES; break;
+                case FRIDAY: diaDeLaSemanaApp = DiaDeLaSemana.VIERNES; break;
+                case SATURDAY: diaDeLaSemanaApp = DiaDeLaSemana.SABADO; break;
+                default: throw new IllegalStateException("Día de la semana no mapeado: " + diaDeLaSemanaJava);
+            }
+        }
 
         List<Horario> horariosDoctor = horarioRepository.findAllByDoctorId(doctor.getId());
 
+        // --- INICIO DE LA CORRECCIÓN ---
+        // Creamos una variable final para usarla dentro de la lambda.
+        final DiaDeLaSemana finalDiaDeLaSemanaApp = diaDeLaSemanaApp;
+
         boolean dentroDeHorario = horariosDoctor.stream().anyMatch(h ->
-                h.getDiaDeLaSemana().name().equals(diaDeLaSemanaCita.toString()) &&
+                h.getDiaDeLaSemana() == finalDiaDeLaSemanaApp && // Usamos la variable final
                         !horaCita.isBefore(h.getHoraInicio()) &&
                         !horaCita.isAfter(h.getHoraFin().minusMinutes(DURACION_CITA_MINUTOS))
         );
+        // --- FIN DE LA CORRECCIÓN ---
 
         if (!dentroDeHorario) {
             throw new IllegalArgumentException("El horario solicitado está fuera de las horas de trabajo del doctor.");
         }
 
-        // 2. Validar que no haya colisiones con otras citas ya programadas
         LocalDateTime horaFinCita = fechaHoraCita.plusMinutes(DURACION_CITA_MINUTOS);
         List<Cita> citasSolapadas = citaRepository.findByDoctorIdAndFechaHoraBetween(
                 doctor.getId(),
@@ -106,6 +123,7 @@ public class CitaService {
         cita.setEstado(EstadoCita.PROGRAMADA);
 
         Cita citaActualizada = citaRepository.save(cita);
+        emailService.notificarCambioDeEstadoCita(citaActualizada.getId()); // Notificación por correo
         return citaMapper.toDto(citaActualizada);
     }
 
@@ -129,6 +147,7 @@ public class CitaService {
         cita.setEstado(EstadoCita.PROGRAMADA);
 
         Cita citaActualizada = citaRepository.save(cita);
+        emailService.notificarCambioDeEstadoCita(citaActualizada.getId()); // Notificación por correo
         return citaMapper.toDto(citaActualizada);
     }
 
@@ -151,6 +170,11 @@ public class CitaService {
 
         cita.setEstado(nuevoEstado);
         Cita citaActualizada = citaRepository.save(cita);
+
+        if (nuevoEstado == EstadoCita.RECHAZADA || nuevoEstado == EstadoCita.CANCELADA) {
+            emailService.notificarCambioDeEstadoCita(citaActualizada.getId()); // Notificación por correo
+        }
+
         return citaMapper.toDto(citaActualizada);
     }
 
