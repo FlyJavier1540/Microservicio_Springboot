@@ -48,6 +48,11 @@ public class DoctorService {
         if(usuarioRepository.existsByEmail(email)){
             email = doctorDTO.getNombreCompleto().replaceAll("\\s+", ".").toLowerCase() + "." + System.currentTimeMillis() + "@citasmedicas.com";
         }
+
+        // --- LÍNEA AÑADIDA PARA DEPURACIÓN ---
+        System.out.println("Email generado para el doctor: " + email);
+        // ------------------------------------
+
         usuario.setEmail(email);
         usuario.setPassword(passwordEncoder.encode(rawPassword));
         usuario.setRoles(Set.of(rolDoctor));

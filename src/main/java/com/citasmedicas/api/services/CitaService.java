@@ -7,12 +7,14 @@ import com.citasmedicas.api.mappers.CitaMapper;
 import com.citasmedicas.api.models.Cita;
 import com.citasmedicas.api.models.Doctor;
 import com.citasmedicas.api.models.Paciente;
+import com.citasmedicas.api.models.Usuario;
 import com.citasmedicas.api.repositories.CitaRepository;
 import com.citasmedicas.api.repositories.DoctorRepository;
 import com.citasmedicas.api.repositories.PacienteRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.security.access.AccessDeniedException;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -25,6 +27,17 @@ public class CitaService {
     private final PacienteRepository pacienteRepository;
     private final DoctorRepository doctorRepository;
     private final CitaMapper citaMapper;
+
+    public List<CitaDTO> obtenerSolicitudesPorDoctor(Usuario usuarioAutenticado) {
+        // 1. Encontrar el perfil de Doctor a partir del Usuario autenticado
+        Doctor doctor = doctorRepository.findByUsuarioId(usuarioAutenticado.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Perfil de Doctor no encontrado para el usuario."));
+
+        // 2. Buscar en el repositorio de citas usando el ID del Doctor y el estado SOLICITADA
+        return citaRepository.findAllByDoctorIdAndEstado(doctor.getId(), EstadoCita.SOLICITADA).stream()
+                .map(citaMapper::toDto)
+                .collect(Collectors.toList());
+    }
 
     @Transactional
     public CitaDTO solicitarCita(CitaDTO citaDTO) {
@@ -47,23 +60,28 @@ public class CitaService {
         return citaMapper.toDto(citaGuardada);
     }
 
-    @Transactional
-    public CitaDTO cambiarEstadoCita(Long id, EstadoCita nuevoEstado) {
+    public CitaDTO cambiarEstadoCita(Long id, EstadoCita nuevoEstado, Usuario usuarioAutenticado) {
         Cita cita = citaRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Cita no encontrada con id: " + id));
 
+        // Verificar si el usuario es un Administrador
+        boolean isAdmin = usuarioAutenticado.getAuthorities().stream()
+                .anyMatch(grantedAuthority -> grantedAuthority.getAuthority().equals("ROLE_ADMIN"));
+
+        // Si el usuario no es un Admin, verificar si es el doctor asignado
+        if (!isAdmin) {
+            Doctor doctor = doctorRepository.findByUsuarioId(usuarioAutenticado.getId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Perfil de Doctor no encontrado para el usuario."));
+
+            if (!cita.getDoctor().getId().equals(doctor.getId())) {
+                throw new AccessDeniedException("No tiene permiso para modificar esta cita.");
+            }
+        }
+
+        // Si las verificaciones pasan, actualiza el estado
         cita.setEstado(nuevoEstado);
         Cita citaActualizada = citaRepository.save(cita);
         return citaMapper.toDto(citaActualizada);
-    }
-
-    public List<CitaDTO> obtenerCitasPorEstado(EstadoCita estado) {
-        // En un sistema real, esto podría necesitar paginación.
-        // También se podrían añadir filtros por doctor, etc.
-        return citaRepository.findAll().stream()
-                .filter(cita -> cita.getEstado() == estado)
-                .map(citaMapper::toDto)
-                .collect(Collectors.toList());
     }
 
     public List<CitaDTO> obtenerCitasPorPaciente(Long pacienteId) {
