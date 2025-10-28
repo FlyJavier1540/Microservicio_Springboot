@@ -4,6 +4,7 @@ import com.citasmedicas.api.dtos.AuthRequestDTO;
 import com.citasmedicas.api.dtos.AuthResponseDTO;
 import com.citasmedicas.api.dtos.RegisterRequestDTO;
 import com.citasmedicas.api.services.AuthService;
+import io.swagger.v3.oas.annotations.Operation; // <-- ¡IMPORTA ESTO!
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -19,6 +20,7 @@ public class AuthController {
 
     private final AuthService authService;
 
+    @Operation(summary = "Registra un nuevo usuario como paciente")
     @PostMapping("/register")
     public ResponseEntity<AuthResponseDTO> register(
             @Valid @RequestBody RegisterRequestDTO request
@@ -26,6 +28,7 @@ public class AuthController {
         return ResponseEntity.ok(authService.register(request));
     }
 
+    @Operation(summary = "Inicia sesión para obtener un token JWT")
     @PostMapping("/login")
     public ResponseEntity<AuthResponseDTO> login(
             @Valid @RequestBody AuthRequestDTO request

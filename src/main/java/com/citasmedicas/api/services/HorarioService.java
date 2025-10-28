@@ -9,7 +9,9 @@ import com.citasmedicas.api.models.Usuario;
 import com.citasmedicas.api.repositories.DoctorRepository;
 import com.citasmedicas.api.repositories.HorarioRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -45,5 +47,21 @@ public class HorarioService {
         return horarioRepository.findAllByDoctorId(doctor.getId()).stream()
                 .map(horarioMapper::toDto)
                 .collect(Collectors.toList());
+    }
+
+    @Transactional
+    public void eliminarHorario(Long id, Usuario usuarioDoctor) {
+        Horario horario = horarioRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Horario no encontrado con id: " + id));
+
+        Doctor doctor = doctorRepository.findByUsuarioId(usuarioDoctor.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Perfil de Doctor no encontrado para el usuario."));
+
+        // Verificamos que el horario pertenezca al doctor que lo quiere eliminar
+        if (!horario.getDoctor().getId().equals(doctor.getId())) {
+            throw new AccessDeniedException("No tiene permiso para eliminar este horario.");
+        }
+
+        horarioRepository.deleteById(id);
     }
 }

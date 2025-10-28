@@ -206,4 +206,13 @@ public class CitaService {
                 .map(citaMapper::toDto)
                 .collect(Collectors.toList());
     }
+
+    @Transactional
+    public void eliminarCita(Long id) {
+        if (!citaRepository.existsById(id)) {
+            throw new ResourceNotFoundException("Cita no encontrada con id: " + id);
+        }
+        // Opcional: Lógica adicional antes de borrar, como verificar si tiene historial.
+        citaRepository.deleteById(id);
+    }
 }

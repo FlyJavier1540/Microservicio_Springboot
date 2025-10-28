@@ -3,6 +3,7 @@ package com.citasmedicas.api.controllers;
 import com.citasmedicas.api.dtos.HistorialMedicoDTO;
 import com.citasmedicas.api.models.Usuario;
 import com.citasmedicas.api.services.HistorialMedicoService;
+import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -20,6 +21,7 @@ public class HistorialMedicoController {
 
     private final HistorialMedicoService historialMedicoService;
 
+    @Operation(summary = "Crea un nuevo registro en el historial médico para una cita completada (Rol: DOCTOR)")
     @PostMapping
     @PreAuthorize("hasRole('DOCTOR')")
     public ResponseEntity<HistorialMedicoDTO> crearHistorial(
@@ -29,6 +31,7 @@ public class HistorialMedicoController {
         return new ResponseEntity<>(historialMedicoService.crearHistorial(historialDTO, usuarioDoctor), HttpStatus.CREATED);
     }
 
+    @Operation(summary = "Obtiene el historial médico completo de un paciente por su ID (Roles: ADMIN, DOCTOR)")
     @GetMapping("/paciente/{pacienteId}")
     @PreAuthorize("hasAnyRole('ADMIN', 'DOCTOR')")
     public ResponseEntity<List<HistorialMedicoDTO>> getHistorialPorPaciente(@PathVariable Long pacienteId) {

@@ -79,4 +79,19 @@ public class DoctorService {
                 .orElseThrow(() -> new ResourceNotFoundException("Doctor no encontrado con id: " + id));
         return doctorMapper.toDto(doctor);
     }
+
+    @Transactional
+    public void eliminarDoctor(Long id) {
+        Doctor doctor = doctorRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Doctor no encontrado con id: " + id));
+
+        // Verificamos si el doctor tiene citas asociadas
+        if (!doctor.getCitas().isEmpty()) {
+            throw new IllegalStateException("No se puede eliminar un doctor con citas asociadas. Por favor, reasigne o cancele las citas primero.");
+        }
+
+        // Si no tiene citas, procedemos a eliminarlo.
+        // El Usuario asociado se eliminará en cascada gracias a la configuración de la entidad.
+        doctorRepository.delete(doctor);
+    }
 }
