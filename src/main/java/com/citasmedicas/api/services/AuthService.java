@@ -7,7 +7,7 @@ import com.citasmedicas.api.enums.RolNombre;
 import com.citasmedicas.api.models.Paciente;
 import com.citasmedicas.api.models.Rol;
 import com.citasmedicas.api.models.Usuario;
-import com.citasmedicas.api.repositories.PacienteRepository;
+import com.citasmedicas.api.repositories.*;
 import com.citasmedicas.api.repositories.RolRepository;
 import com.citasmedicas.api.repositories.UsuarioRepository;
 import lombok.RequiredArgsConstructor;
@@ -36,7 +36,7 @@ public class AuthService {
             throw new IllegalArgumentException("El email ya está en uso.");
         }
 
-        Rol rolPaciente = rolRepository.findByNombre(RolNombre.ROL_PACIENTE)
+        Rol rolPaciente = rolRepository.findByNombre(RolNombre.PACIENTE)
                 .orElseThrow(() -> new RuntimeException("Error: Rol de paciente no encontrado."));
 
         Usuario usuario = new Usuario();
