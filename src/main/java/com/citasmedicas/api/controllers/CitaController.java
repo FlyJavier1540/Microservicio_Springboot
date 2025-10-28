@@ -42,6 +42,14 @@ public class CitaController {
         return ResponseEntity.ok(citaService.obtenerSolicitudesPorDoctor(usuarioAutenticado));
     }
 
+    // --- NUEVO ENDPOINT SEGURO PARA PACIENTES ---
+    @GetMapping("/mis-citas")
+    @PreAuthorize("hasRole('PACIENTE')")
+    public ResponseEntity<List<CitaDTO>> getMisCitas(Authentication authentication) {
+        Usuario usuarioAutenticado = (Usuario) authentication.getPrincipal();
+        return ResponseEntity.ok(citaService.obtenerCitasDelPacienteAutenticado(usuarioAutenticado));
+    }
+
     // Endpoint para aprobar una cita
     @PatchMapping("/{id}/aprobar")
     @PreAuthorize("hasAnyRole('ADMIN', 'DOCTOR')")

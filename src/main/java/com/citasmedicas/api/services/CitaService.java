@@ -92,4 +92,15 @@ public class CitaService {
                 .map(citaMapper::toDto)
                 .collect(Collectors.toList());
     }
+
+    public List<CitaDTO> obtenerCitasDelPacienteAutenticado(Usuario usuarioAutenticado) {
+        // 1. Encontrar el perfil del Paciente a partir del Usuario
+        Paciente paciente = pacienteRepository.findByUsuarioId(usuarioAutenticado.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Perfil de Paciente no encontrado para el usuario."));
+
+        // 2. Usar el ID del Paciente para buscar todas sus citas
+        return citaRepository.findAllByPacienteId(paciente.getId()).stream()
+                .map(citaMapper::toDto)
+                .collect(Collectors.toList());
+    }
 }
