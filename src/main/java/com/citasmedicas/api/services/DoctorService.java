@@ -90,8 +90,6 @@ public class DoctorService {
             throw new IllegalStateException("No se puede eliminar un doctor con citas asociadas. Por favor, reasigne o cancele las citas primero.");
         }
 
-        // Si no tiene citas, procedemos a eliminarlo.
-        // El Usuario asociado se eliminará en cascada gracias a la configuración de la entidad.
         doctorRepository.delete(doctor);
     }
 }

@@ -24,7 +24,7 @@ public class PacienteController {
         return ResponseEntity.ok(pacienteService.obtenerTodosLosPacientes());
     }
 
-    @Operation(summary = "Obtiene los detalles de un paciente por su ID (Roles: ADMIN, o el propio PACIENTE)")
+    @Operation(summary = "Obtiene los detalles de un paciente por su ID (Roles: ADMIN)")
     @GetMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN') or @securityService.esPropietarioDeCuentaPaciente(authentication, #id)")
     public ResponseEntity<PacienteDTO> getPacienteById(@PathVariable Long id) {

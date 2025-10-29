@@ -33,7 +33,7 @@ public class CitaController {
         return new ResponseEntity<>(citaService.solicitarCita(solicitudDTO, usuarioPaciente), HttpStatus.CREATED);
     }
 
-    @Operation(summary = "Obtiene la lista de citas solicitadas pendientes (Roles: ADMIN, DOCTOR)")
+    @Operation(summary = "Obtiene la lista de citas solicitadas pendientes (Roles: DOCTOR)")
     @GetMapping("/solicitudes")
     @PreAuthorize("hasAnyRole('ADMIN', 'DOCTOR')")
     public ResponseEntity<List<CitaDTO>> getCitasSolicitadas(Authentication authentication) {

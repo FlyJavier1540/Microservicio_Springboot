@@ -4,6 +4,5 @@ public enum EstadoCita {
     SOLICITADA,
     PROGRAMADA,
     COMPLETADA,
-    CANCELADA,
     RECHAZADA
 }
