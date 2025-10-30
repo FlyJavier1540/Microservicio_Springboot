@@ -14,6 +14,7 @@ public class DoctorDTO {
 
     private String telefono;
     private String cedulaProfesional;
-    private Long especialidadId; // Para las peticiones
-    private String especialidadNombre; // Para las respuestas
+    private Long especialidadId;
+    private String especialidadNombre;
+    private String password;
 }

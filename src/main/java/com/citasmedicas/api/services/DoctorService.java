@@ -1,6 +1,7 @@
 package com.citasmedicas.api.services;
 
 import com.citasmedicas.api.dtos.DoctorDTO;
+import com.citasmedicas.api.dtos.DoctorResponseDTO; // Importa el nuevo DTO
 import com.citasmedicas.api.enums.RolNombre;
 import com.citasmedicas.api.exceptions.ResourceNotFoundException;
 import com.citasmedicas.api.mappers.DoctorMapper;
@@ -17,6 +18,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.security.SecureRandom;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -32,52 +34,61 @@ public class DoctorService {
     private final PasswordEncoder passwordEncoder;
     private final DoctorMapper doctorMapper;
 
+    private String generateRandomPassword() {
+        final String CHARACTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+        final int PASSWORD_LENGTH = 10;
+        SecureRandom random = new SecureRandom();
+        StringBuilder sb = new StringBuilder(PASSWORD_LENGTH);
+        for (int i = 0; i < PASSWORD_LENGTH; i++) {
+            sb.append(CHARACTERS.charAt(random.nextInt(CHARACTERS.length())));
+        }
+        return sb.toString();
+    }
+
     @Transactional
-    public DoctorDTO registrarDoctor(DoctorDTO doctorDTO, String rawPassword) {
-        // 1. Validar que la especialidad exista
+    public DoctorResponseDTO registrarDoctor(DoctorDTO doctorDTO) {
         Especialidad especialidad = especialidadRepository.findById(doctorDTO.getEspecialidadId())
                 .orElseThrow(() -> new ResourceNotFoundException("Especialidad no encontrada con id: " + doctorDTO.getEspecialidadId()));
 
-        // 2. Crear y configurar el Usuario
         Rol rolDoctor = rolRepository.findByNombre(RolNombre.DOCTOR)
                 .orElseThrow(() -> new RuntimeException("Error: Rol de doctor no encontrado."));
 
-        Usuario usuario = new Usuario();
-        // Generaremos un email provisional, que el doctor podrá cambiar luego.
+        String generatedPassword = generateRandomPassword();
         String email = doctorDTO.getNombreCompleto().replaceAll("\\s+", ".").toLowerCase() + "@citasmedicas.com";
         if(usuarioRepository.existsByEmail(email)){
             email = doctorDTO.getNombreCompleto().replaceAll("\\s+", ".").toLowerCase() + "." + System.currentTimeMillis() + "@citasmedicas.com";
         }
 
-        // --- LÍNEA AÑADIDA PARA DEPURACIÓN ---
-        System.out.println("Email generado para el doctor: " + email);
-        // ------------------------------------
-
+        Usuario usuario = new Usuario();
         usuario.setEmail(email);
-        usuario.setPassword(passwordEncoder.encode(rawPassword));
+        usuario.setPassword(passwordEncoder.encode(generatedPassword));
         usuario.setRoles(Set.of(rolDoctor));
 
-        // 3. Crear y configurar el Doctor
         Doctor doctor = doctorMapper.toEntity(doctorDTO);
         doctor.setUsuario(usuario);
         doctor.setEspecialidad(especialidad);
 
-        // 4. Guardar y devolver el DTO
         Doctor nuevoDoctor = doctorRepository.save(doctor);
-        return doctorMapper.toDto(nuevoDoctor);
+
+        DoctorResponseDTO responseDTO = doctorMapper.toResponseDto(nuevoDoctor);
+        responseDTO.setPassword(generatedPassword); // Llenamos el campo de la contraseña manualmente
+
+        return responseDTO;
     }
 
-    public List<DoctorDTO> obtenerTodosLosDoctores() {
+    public List<DoctorResponseDTO> obtenerTodosLosDoctores() {
         return doctorRepository.findAll()
                 .stream()
-                .map(doctorMapper::toDto)
+                // El password aquí será null y no se mostrará en el JSON
+                .map(doctorMapper::toResponseDto)
                 .collect(Collectors.toList());
     }
 
-    public DoctorDTO obtenerDoctorPorId(Long id) {
+    public DoctorResponseDTO obtenerDoctorPorId(Long id) {
         Doctor doctor = doctorRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Doctor no encontrado con id: " + id));
-        return doctorMapper.toDto(doctor);
+        // El password aquí será null y no se mostrará en el JSON
+        return doctorMapper.toResponseDto(doctor);
     }
 
     @Transactional

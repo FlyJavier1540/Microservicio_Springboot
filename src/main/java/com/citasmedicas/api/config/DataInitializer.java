@@ -37,18 +37,5 @@ public class DataInitializer implements CommandLineRunner {
             rolRepository.save(new Rol(null, RolNombre.PACIENTE));
             System.out.println("Rol PACIENTE creado.");
         }
-
-        if (usuarioRepository.findByEmail("admin@citasmedicas.com").isEmpty()) {
-            Rol rolAdmin = rolRepository.findByNombre(RolNombre.ADMIN)
-                    .orElseThrow(() -> new RuntimeException("Rol ADMIN no encontrado"));
-
-            Usuario admin = new Usuario();
-            admin.setEmail("admin@citasmedicas.com");
-            admin.setPassword(passwordEncoder.encode("admin123"));
-            admin.setRoles(Set.of(rolAdmin));
-
-            usuarioRepository.save(admin);
-            System.out.println("Usuario Administrador creado.");
-        }
     }
 }

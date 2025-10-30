@@ -1,6 +1,7 @@
 package com.citasmedicas.api.mappers;
 
 import com.citasmedicas.api.dtos.DoctorDTO;
+import com.citasmedicas.api.dtos.DoctorResponseDTO;
 import com.citasmedicas.api.models.Doctor;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
@@ -11,9 +12,9 @@ public interface DoctorMapper {
 
     DoctorMapper INSTANCE = Mappers.getMapper(DoctorMapper.class);
 
-    @Mapping(source = "especialidad.id", target = "especialidadId")
     @Mapping(source = "especialidad.nombre", target = "especialidadNombre")
-    DoctorDTO toDto(Doctor doctor);
+    @Mapping(target = "password", ignore = true) // Ignora el password por defecto
+    DoctorResponseDTO toResponseDto(Doctor doctor);
 
     @Mapping(source = "especialidadId", target = "especialidad.id")
     Doctor toEntity(DoctorDTO doctorDTO);

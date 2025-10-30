@@ -1,5 +1,6 @@
 package com.citasmedicas.api.controllers;
 
+import com.citasmedicas.api.dtos.AdminRegisterRequestDTO;
 import com.citasmedicas.api.dtos.AuthRequestDTO;
 import com.citasmedicas.api.dtos.AuthResponseDTO;
 import com.citasmedicas.api.dtos.RegisterRequestDTO;
@@ -34,5 +35,13 @@ public class AuthController {
             @Valid @RequestBody AuthRequestDTO request
     ) {
         return ResponseEntity.ok(authService.login(request));
+    }
+
+    @Operation(summary = "Registra el primer usuario administrador del sistema usando una clave secreta")
+    @PostMapping("/register-admin")
+    public ResponseEntity<AuthResponseDTO> registerAdmin(
+            @Valid @RequestBody AdminRegisterRequestDTO request
+    ) {
+        return ResponseEntity.ok(authService.registerAdmin(request));
     }
 }
