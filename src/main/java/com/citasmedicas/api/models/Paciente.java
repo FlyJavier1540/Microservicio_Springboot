@@ -5,6 +5,8 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+
+import java.util.ArrayList;
 import java.util.List;
 
 import java.time.LocalDate;
@@ -36,5 +38,5 @@ public class Paciente {
     private Usuario usuario;
 
     @OneToMany(mappedBy = "paciente", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<Cita> citas;
+    private List<Cita> citas = new ArrayList<>();
 }

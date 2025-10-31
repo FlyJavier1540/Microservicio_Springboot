@@ -54,7 +54,12 @@ public class DoctorService {
                 .orElseThrow(() -> new RuntimeException("Error: Rol de doctor no encontrado."));
 
         String generatedPassword = generateRandomPassword();
-        String email = doctorDTO.getNombreCompleto().replaceAll("\\s+", ".").toLowerCase() + "@citasmedicas.com";
+        String email = doctorDTO.getNombreCompleto()
+                .trim() // Quita espacios al inicio y al final
+                .replaceAll("[^a-zA-Z0-9]", ".") // Reemplaza todo lo que no sea letra/número por un punto
+                .replaceAll("\\.+", ".") // Reemplaza múltiples puntos seguidos por uno solo
+                .toLowerCase() + "@citasmedicas.com";
+        //String email = doctorDTO.getNombreCompleto().replaceAll("\\s+", ".").toLowerCase() + "@citasmedicas.com";
         if(usuarioRepository.existsByEmail(email)){
             email = doctorDTO.getNombreCompleto().replaceAll("\\s+", ".").toLowerCase() + "." + System.currentTimeMillis() + "@citasmedicas.com";
         }

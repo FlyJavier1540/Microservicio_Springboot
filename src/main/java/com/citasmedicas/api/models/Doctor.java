@@ -5,6 +5,8 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+
+import java.util.ArrayList;
 import java.util.List;
 
 @Entity
@@ -38,6 +40,5 @@ public class Doctor {
     private Especialidad especialidad;
 
     @OneToMany(mappedBy = "doctor", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<Cita> citas;
-
+    private List<Cita> citas = new ArrayList<>();
 }
